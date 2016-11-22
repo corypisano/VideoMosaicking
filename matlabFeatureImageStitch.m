@@ -1,6 +1,10 @@
 %https://www.mathworks.com/help/vision/examples/feature-based-panoramic-image-stitching.html
 % Load images.
+close all
 buildingDir = fullfile(toolboxdir('vision'), 'visiondata', 'building');
+buildingDir = './SequenceData/flower';
+buildingDir = './SequenceData/bridge_close';
+buildingDir = './test';
 buildingScene = imageDatastore(buildingDir);
 
 % Display images to be stitched
@@ -12,6 +16,29 @@ I = readimage(buildingScene, 1);
 
 % Initialize features for I(1)
 grayImage = rgb2gray(I);
+
+B = imresize(A, [640 NaN])
+%resizes the image so that it has
+%the specified number of rows and columns.  Either NUMROWS or NUMCOLS
+%may be NaN, in which case imresize computes the number of rows or
+%columns automatically in order to preserve the image aspect ratio.
+
+
+%{
+feature = 'SURF'
+switch feature
+    case 'SURF'
+        detectSURFFeatures
+    case 'HARRIS'
+        detectHarrisFeatures
+    otherwise
+        error('feature unknown');
+end
+%}
+%detectFASTFeatures
+%detectMinEigenFeatures
+%detectBRISKFeatures
+%detectMSERFeatures
 points = detectSURFFeatures(grayImage);
 [features, points] = extractFeatures(grayImage, points);
 
@@ -24,7 +51,7 @@ tforms(numImages) = projective2d(eye(3));
 
 % Iterate over remaining image pairs
 for n = 2:numImages
-
+    
     % Store points and features for I(n-1).
     pointsPrevious = points;
     featuresPrevious = features;
@@ -32,25 +59,27 @@ for n = 2:numImages
     
     % Read I(n).
     I = readimage(buildingScene, n);
-
+    
     % Detect and extract SURF features for I(n).
     grayImage = rgb2gray(I);
     points = detectSURFFeatures(grayImage);
     [features, points] = extractFeatures(grayImage, points);
-
+    
     % Find correspondences between I(n) and I(n-1).
-    indexPairs = matchFeatures(features, featuresPrevious, 'Unique', true);    
+    indexPairs = matchFeatures(features, featuresPrevious, 'Unique', true);
     matchedPoints = points(indexPairs(:,1), :);
     matchedPointsPrev = pointsPrevious(indexPairs(:,2), :);
-        
+    
     %ZZZ
-    figure()
-    showMatchedFeatures(I, prevI, matchedPoints, matchedPointsPrev, 'montage');
-
+    if n == 2
+        figure()
+        showMatchedFeatures(I, prevI, matchedPoints, matchedPointsPrev, 'montage');
+    end
+    
     % Estimate the transformation between I(n) and I(n-1).
     tforms(n) = estimateGeometricTransform(matchedPoints, matchedPointsPrev,...
         'projective', 'Confidence', 99.9, 'MaxNumTrials', 2000);
-
+    
     % Compute T(1) * ... * T(n-1) * T(n)
     tforms(n).T = tforms(n-1).T * tforms(n).T;
 end
@@ -97,7 +126,7 @@ height = round(yMax - yMin);
 % Initialize the "empty" panorama.
 panorama = zeros([height width 3], 'like', I);
 
-%% 
+%%
 blender = vision.AlphaBlender('Operation', 'Binary mask', ...
     'MaskSource', 'Input port');
 
@@ -108,17 +137,20 @@ panoramaView = imref2d([height width], xLimits, yLimits);
 
 % Create the panorama.
 for i = 1:numImages
-
+    
     I = readimage(buildingScene, i);
-
+    
     % Transform I into the panorama.
     warpedImage = imwarp(I, tforms(i), 'OutputView', panoramaView);
-
+    
     % Generate a binary mask.
     mask = imwarp(true(size(I,1),size(I,2)), tforms(i), 'OutputView', panoramaView);
-
+    
     % Overlay the warpedImage onto the panorama.
     panorama = step(blender, panorama, warpedImage, mask);
+    
+    figure
+    imshow(panorama)
 end
 
 figure
