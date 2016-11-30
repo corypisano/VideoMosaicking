@@ -20,7 +20,7 @@ overlapMidCol = floor((overlapStartCol + overlapEndCol) / 2);
 alpha = zeros(panoramaRows, panoramaCols);
 
 % windowLength must be a factor of 2
-windowLength = 640;
+windowLength = 64;
 if windowLength/2 >= overlapMidCol - overlapStartCol
     windowLength = floor(2*(overlapMidCol - overlapStartCol));
 end

@@ -1,37 +1,83 @@
 function newPanorama = blendPyramid(panorama, newImg, panoramaMask, newMask)
 %%
+% http://vision.cse.psu.edu/courses/CompPhoto/pyramidblending.pdf
 
 buildingDir = './SequenceData/living_room';
 imds = imageDatastore(buildingDir);
 
-% Display images to be stitched
-
 % Read the first image from the image set.
-img1 = readimage(imds, 1);
-img2 = readimage(imds, 2);
+%img1 = readimage(imds, 1);
+%img2 = readimage(imds, 2);
+img1 = panorama;
+img2 = newImg;
 
-% http://vision.cse.psu.edu/courses/CompPhoto/pyramidblending.pdf
-A = img1;
-G0 = A;
-G1 = impyramid(G0, 'reduce');
-G2 = impyramid(G1, 'reduce');
-G3 = impyramid(G2, 'reduce');
+newMask = uint8(newMask);
+panoramaMask = uint8(panoramaMask);
 
-L0 = G0 - imresize(G1, 2);
-L1 = G1 - imresize(G2, 2);
-L2 = G2 - imresize(G3, 2);
+% panorama is already filled in in the panoramaMask region
 
-subplot(3,1,1);
-imshow(L0, []);
+% what is the overlap region?
+overlapMask = double(and(panoramaMask, newMask));
 
-subplot(3,1,2);
-imshow(L1, []);
+% pyramid levels
+N = 3;
 
-subplot(3,1,3);
-imshow(L2, []);
+GA = cell(1, N+1);
+GB = cell(1, N+1);
+
+GA{1} = im2double(img1);
+GB{1} = im2double(img2);
+
+% gaussian pyramids
+for i = 2:N+1
+    % each level is a gaussian pyramid reduction of one level higher
+    GA{i} = impyramid(GA{i-1}, 'reduce');
+    GB{i} = impyramid(GB{i-1}, 'reduce');
+end
+
+
+for i = N:-1:1
+    osz = size(GA{i+1}) * 2 - 1;
+    GA{i} = imresize(GA{i}, [osz(1) osz(2)]);
+    GB{i} = imresize(GB{i}, [osz(1) osz(2)]);
+end
+
+
+% laplacian pyramids
+LA = cell(1, N+1);
+LB = cell(1, N+1);
+for i = 1:N
+	LA{i} = GA{i} - impyramid(GA{i+1}, 'expand');
+    LB{i} = GB{i} - impyramid(GB{i+1}, 'expand');
+	%LA{i} = GA{i} - imresize(GA{i+1}, 2);
+    %LB{i} = GB{i} - imresize(GB{i+1}, 2);
+end
+LA{N+1} = GA{N+1};
+LB{N+1} = GB{N+1};
+
+%% collapse pyramids to blend 
+
+LS = cell(1, N+1);
+for l = 1:N+1
+    centerLine = round((size(LA{l}, 2) + 1) / 2);
+    endLine = size(LA{l}, 2);
+    
+    LS{l}(:,1:centerLine,:) = LA{l}(:,1:centerLine,:);
+    LS{l}(:,centerLine,:) = (LA{l}(:,centerLine,:) + LB{l}(:,centerLine,:)) ./ 2;
+    LS{l}(:,centerLine+1:endLine,:) = LB{l}(:,centerLine+1:end,:);
+end
+
+newOverlap = LS{N+1};
+for i = N:-1:1
+    newOverlap = LS{i} + impyramid(newOverlap, 'expand');
+    %newOverlap = LS{i} + imresize(newOverlap, 2');
+end
+%newOverlap = imresize(newOverlap, [height width]);
+newOverlap = im2uint8(newOverlap);
 
 end
 
+%{
 %% https://github.com/msyamkumar/vision-panorama/blob/master/blendPyramid.m
 function [ out ] = blendPyramid( I1, I2 )
 % executes pyramid blending of images A and B
@@ -95,3 +141,4 @@ for i=2:n
 end
 laplacians{n} = gaussians{n};
 end
+%}
