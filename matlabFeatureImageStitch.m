@@ -25,24 +25,24 @@ clear all;
 %% Mosaic Settings
 tic
 
-FEATURE_DETECTION_METHOD = 'FAST';
-%FEATURE_DETECTION_METHOD = 'SURF';
+%FEATURE_DETECTION_METHOD = 'FAST';
+FEATURE_DETECTION_METHOD = 'SURF';
 %FEATURE_DETECTION_METHOD = 'BRISK';
 %FEATURE_DETECTION_METHOD = 'MSER';
 %FEATURE_DETECTION_METHOD = 'MINEIGEN';
-FEATURE_DETECTION_METHOD = 'HARRIS';
+%FEATURE_DETECTION_METHOD = 'HARRIS';
 BLENDING_METHOD = 'alpha';
 
 warpToCenter = 1;
 
 useMaxResolution = 1;
 if useMaxResolution
-    maxResolution = 900;
+    maxResolution = 640;
 end
 
 useCylindricalProjection = 0;
 if useCylindricalProjection
-    focalLength = 670; % pixels
+    focalLength = 800; % pixels
     % info.Width * info.DigitalCamera.FocalLength / [ccd width or sensor width in mm]
     % info.Width * info.DigitalCamera.FocalLength / 6.17 (for nexus 6p)
     % maxResolution * info.DigitalCamera.FocalLength / 6.17 (for nexus 6p)
@@ -50,7 +50,7 @@ end
 
 showAllStiches = 0;
 
-%buildingDir = fullfile(toolboxdir('vision'), 'visiondata', 'building');
+buildingDir = fullfile(toolboxdir('vision'), 'visiondata', 'building');
 %buildingDir = './SequenceData/flower';
 %buildingDir = './SequenceData/bridge_close';
 buildingDir = './SequenceData/living_room';
@@ -67,7 +67,7 @@ info = imfinfo(imds.Files{1})
 
 % Display images to be stitched
 figure();
-montage(imds.Files)
+montage(imds.Files, 'Size', [2 NaN])
 
 numFrames = numel(imds.Files);
 imgFrames = cell(numFrames, 1);
@@ -215,7 +215,7 @@ for n = 2:numFrames
     %   enough points,  2: Not enough inliers have been found.
     try
         tforms(n) = estimateGeometricTransform(matchedPoints, matchedPointsPrev,...
-            'projective', 'Confidence', 99.9, 'MaxNumTrials', 2000);
+            'projective', 'Confidence', 99.5, 'MaxNumTrials', 1000);
     catch e
         errordlg(e.message, 'Homography Error!')
         error(e.message);
@@ -236,7 +236,6 @@ for i = 1:numFrames
     imageSize = size(imgFrames{i});  % all the images are the same size??
     [xlim(i,:), ylim(i,:)] = outputLimits(tforms(i), [1 imageSize(2)], [1 imageSize(1)]);
 end
-
 
 
 if warpToCenter
@@ -293,7 +292,8 @@ for i = 1:numFrames
     
     % Generate a binary mask.
     % zzz - need to change this
-    mask = imwarp(true(size(img,1),size(img,2)), tforms(i), 'OutputView', panoramaView);
+    %mask = imwarp(true(size(img,1),size(img,2)), tforms(i), 'OutputView', panoramaView);
+    mask = logical(rgb2gray(warpedImg));
     
     % Blending Method
     switch BLENDING_METHOD
